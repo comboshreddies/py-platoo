@@ -1,0 +1,1 @@
+curl -X DELETE http://localhost:8080/memos/v1/2db00064-2a85-4c1a-a3c8-76d6b57804ea

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<link rel="stylesheet" href="/static/style001.css">
+<meta name="py-platoo" content="memos" charset="UTF-8"/>
+<title>py-platoo</title>
+<script src="/static/formSubmit.js"></script>
+</head>
+<body>
+    <form action="/addMemo" method="post" id="addMemo">
+        <input type="text" id="memo" name="memo">
+        <input type="submit" value="Submit">
+    </form>
+    <div id='submitStatus'></div>
+    Total : <div id='counter'>{{total_items}}</div>
+    <div class="memos" id='memos'>
+        {% for item in items %} <hr/> <!-- {{item[0]}} --> {{item[1]}}
+        {% endfor %}</div>
+    <hr/>
+</body>
+</html>
+

@@ -1,0 +1,10 @@
+.nox
+.mypy_cache
+.coverage
+htmlcov
+__pycache__/
+./tests/__pycache__/
+./src/api/__pycache__/
+__init__.py,cover
+venv
+poetry.lock
