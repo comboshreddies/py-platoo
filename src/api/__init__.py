@@ -5,7 +5,7 @@ from sys import exit as sys_exit
 from uuid import UUID
 import asyncio
 from dataclasses import dataclass
-from quart import Quart, request, render_template
+from quart import Quart, render_template
 from quart_schema import QuartSchema, validate_request
 from quart_schema import validate_response, validate_querystring
 from quart_schema import RequestSchemaValidationError, DataSource
@@ -18,9 +18,9 @@ L_VERSION = "v1"
 app = Quart(__name__)
 
 
-QuartSchema(app,swagger_ui_path=getenv('OAPI_DOCS'),openapi_path=getenv('OAPI_JSON'))
+QuartSchema(app, swagger_ui_path=getenv("OAPI_DOCS"), openapi_path=getenv("OAPI_JSON"))
 
-DATA_ONE = False
+DATA_ONE = Data(getenv("PG_CONNECT"))
 
 
 def quart_run() -> None:  # pragma: no cover
@@ -41,23 +41,25 @@ async def setup() -> None:
     global DATA_ONE
     connect_string = getenv("PG_CONNECT")
     if not connect_string:
-        print("no connect string, exiting")
+        print("no data connect string, exiting")
         sys_exit(1)
-    DATA_ONE = Data(connect_string)
+    if not DATA_ONE:
+        print("no data class, exiting")
+        sys_exit(2)
     if not await DATA_ONE.connect_pool():
         print("unable to create pool, exiting")
-        sys_exit(2)
+        sys_exit(3)
     if not await DATA_ONE.check_connection():
         print("unable to verify connection, exiting")
-        sys_exit(3)
+        sys_exit(4)
     if not await DATA_ONE.check_table():
         print("no expected table found, creating")
         if not await DATA_ONE.create_table():
             print("failed on table creation, exiting")
-            sys_exit(4)
+            sys_exit(5)
         if not await DATA_ONE.add_indexes():
             print("failed to add indexes, exiting")
-            sys_exit(5)
+            sys_exit(6)
 
 
 @app.after_serving
@@ -68,7 +70,7 @@ async def cleanup() -> None:
 
 
 @app.get("/")
-async def serve_rendered_html() -> str:
+async def serve_rendered_html() -> tuple[str, int]:
     """serve basic html that works without js"""
     global DATA_ONE
     cnt = await DATA_ONE.count_all()
@@ -79,7 +81,7 @@ async def serve_rendered_html() -> str:
 
 
 @app.get("/dynamic")
-async def serve_js_html() -> str:
+async def serve_js_html() -> tuple[str, int]:
     """serving html that requires js"""
     render = await render_template("memo_template.html", items=[], total_items=0)
     return render, 200
@@ -94,7 +96,7 @@ class DbHealth:
 
 @app.get("/health/db")
 @validate_response(DbHealth)
-async def check_db_health() -> DbHealth:
+async def check_db_health() -> tuple[DbHealth, int]:
     """db health check select 1"""
     global DATA_ONE
     if await DATA_ONE.check_connection():
@@ -111,7 +113,7 @@ class AppHealth:
 
 @app.get("/health/app")
 @validate_response(AppHealth)
-async def check_app_health() -> AppHealth:
+async def check_app_health() -> tuple[AppHealth, int]:
     """app health check"""
     global DATA_ONE
     if await DATA_ONE.pool_present():
@@ -123,9 +125,9 @@ async def check_app_health() -> AppHealth:
 class MemoListIn:
     """data class for MemoIn"""
 
-    offset: int | None = 0
-    limit: int | None = 0
-    nodata: int | None = 0
+    offset: int = 0
+    limit: int = 0
+    nodata: int = 0
 
 
 @dataclass
@@ -149,12 +151,14 @@ class MemoListOut:
 @app.get(f"/memos/{L_VERSION}")
 @validate_querystring(MemoListIn)
 @validate_response(MemoListOut)
-async def get_memos(query_args: MemoListIn) -> MemoListOut:
+async def get_memos(query_args: MemoListIn) -> tuple[MemoListOut, int]:
     """return memos list"""
     global DATA_ONE
     if query_args.nodata:
-        ret = await DATA_ONE.count_all()
-        return MemoListOut(count=ret, limit=0, offset=0, items=[])
+        return (
+            MemoListOut(count=await DATA_ONE.count_all(), limit=0, offset=0, items=[]),
+            200,
+        )
     ret = await DATA_ONE.select_all_limit_offset(query_args.limit, query_args.offset)
     ret_list = []
     for item in ret:
@@ -221,16 +225,16 @@ class MemoDelOut(MemoDelIn):
 
 @app.delete(f"/memos/{L_VERSION}/<string:uuid>")
 @validate_response(MemoDelOut)
-async def delete_memo_2(uuid) -> MemoDelOut:
+async def delete_memo_2(uuid) -> tuple[MemoDelOut, int]:
     """add new memo"""
     global DATA_ONE
     try:
         UUID(uuid)
     except ValueError:
-        return MemoGetOut(memo="invalid uuid", uuid=uuid), 400
+        return MemoDelOut(success=False, uuid=uuid), 400
 
     ret = await DATA_ONE.delete_one(uuid)
-    return MemoDelOut(success=ret, uuid=uuid)
+    return MemoDelOut(success=ret, uuid=uuid), 200
 
 
 @dataclass
@@ -249,7 +253,7 @@ class MemoGetOut(MemoDelIn):
 
 @app.get(f"/memos/{L_VERSION}/<string:uuid>")
 @validate_response(MemoGetOut)
-async def get_memo(uuid) -> MemoGetOut:
+async def get_memo(uuid) -> tuple[MemoGetOut, int]:
     """add new memo"""
     global DATA_ONE
     try:
@@ -263,7 +267,7 @@ async def get_memo(uuid) -> MemoGetOut:
 
 
 @app.errorhandler(RequestSchemaValidationError)
-async def handle_request_validation_error(error):
+async def handle_request_validation_error(error) -> tuple[dict, int]:
     """providing more or less verbose validation messages"""
     if getenv("VERBOSE_VALIDATION"):
         return {"errors": str(error.validation_error)}, 400

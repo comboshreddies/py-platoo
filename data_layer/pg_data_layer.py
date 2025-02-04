@@ -11,7 +11,7 @@ class PGData:
     def __init__(self, connect_info):
         """init of a class"""
         self._connect_info = connect_info
-        self._ltable = "tbl"
+        self._mtable = "tbl"
         self.loop = asyncio.get_event_loop()
         self._pool = None
 
@@ -74,11 +74,11 @@ class PGData:
         ret = None
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
-                ret = await cur.execute(f"SELECT to_regclass('{self._ltable}')")
+                ret = await cur.execute(f"SELECT to_regclass('{self._mtable}')")
                 ret = await cur.fetchone()
                 cur.close()
             await self._pool.release(conn)
-        if isinstance(ret, tuple) and ret[0] == self._ltable:
+        if isinstance(ret, tuple) and ret[0] == self._mtable:
             return True
         return False
 
@@ -90,7 +90,7 @@ class PGData:
             return True
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
-                await cur.execute(f"DROP TABLE IF EXISTS {self._ltable}")
+                await cur.execute(f"DROP TABLE IF EXISTS {self._mtable}")
                 cur.close()
             await self._pool.release(conn)
             return True
@@ -105,7 +105,7 @@ class PGData:
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
                 await cur.execute(
-                    f"CREATE TABLE {self._ltable} ("
+                    f"CREATE TABLE {self._mtable} ("
                     + "id uuid DEFAULT gen_random_uuid(),"
                     + "memo VARCHAR NOT NULL,"
                     + "created TIMESTAMP NOT NULL,"
@@ -129,12 +129,12 @@ class PGData:
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
                 await cur.execute(
-                    f"CREATE INDEX deleted_idx ON {self._ltable} (deleted)"
+                    f"CREATE INDEX deleted_idx ON {self._mtable} (deleted)"
                 )
                 cur.close()
             async with await conn.cursor() as cur:
                 await cur.execute(
-                    f"CREATE INDEX modified_idx ON {self._ltable} (modified)"
+                    f"CREATE INDEX modified_idx ON {self._mtable} (modified)"
                 )
                 cur.close()
             await self._pool.release(conn)
@@ -149,7 +149,7 @@ class PGData:
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
                 await cur.execute(
-                    f"INSERT INTO {self._ltable} (memo,created,modified) VALUES (%(memo)s,now(),now()) RETURNING id;",
+                    f"INSERT INTO {self._mtable} (memo,created,modified) VALUES (%(memo)s,now(),now()) RETURNING id;",
                     {"memo": value},
                 )
                 ret = await cur.fetchone()
@@ -165,9 +165,9 @@ class PGData:
             return []
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
-                # await cur.execute(f"SELECT id,memo FROM {self._ltable}")
+                # await cur.execute(f"SELECT id,memo FROM {self._imtable}")
                 await cur.execute(
-                    f"SELECT id,memo FROM {self._ltable} WHERE deleted IS NULL"
+                    f"SELECT id,memo FROM {self._mtable} WHERE deleted IS NULL"
                 )
                 ret = await cur.fetchall()
                 cur.close()
@@ -175,22 +175,21 @@ class PGData:
             return ret
         return []
 
-    async def delete_one(self, mid) -> int:
+    async def delete_one(self, mid) -> bool:
         """delete one by id"""
         if not self._pool:
             return False
-        rows = 0
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
-                # await cur.execute(f"DELETE FROM {self._ltable} WHERE id = %(id)s",{'id':id})
+                # await cur.execute(f"DELETE FROM {self._mtable} WHERE id = %(id)s",{'id':id})
                 await cur.execute(
-                    f"UPDATE {self._ltable} SET deleted = now() WHERE deleted IS NULL AND id = %(id)s",
+                    f"UPDATE {self._mtable} SET deleted = now() WHERE deleted IS NULL AND id = %(id)s",
                     {"id": mid},
                 )
-                rows = cur.rowcount
+                crows = cur.rowcount
                 cur.close()
             await self._pool.release(conn)
-            if rows == 1:
+            if crows == 1:
                 return True
         return False
 
@@ -201,7 +200,7 @@ class PGData:
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
                 await cur.execute(
-                    f"UPDATE {self._ltable} SET modified = now(), memo = %(value)s WHERE id = %(id)s",
+                    f"UPDATE {self._mtable} SET modified = now(), memo = %(value)s WHERE id = %(id)s",
                     {"id": mid, "value": value},
                 )
                 cur.close()
@@ -219,23 +218,23 @@ class PGData:
                 if limit > 0:
                     if offset > 0:
                         await cur.execute(
-                            f"SELECT id,memo FROM {self._ltable} WHERE deleted IS NULL ORDER BY modified DESC LIMIT %(lmt)s OFFSET %(ofs)s",
+                            f"SELECT id,memo FROM {self._mtable} WHERE deleted IS NULL ORDER BY modified DESC LIMIT %(lmt)s OFFSET %(ofs)s",
                             {"lmt": limit, "ofs": offset},
                         )
                     else:
                         await cur.execute(
-                            f"SELECT id,memo FROM {self._ltable} WHERE deleted IS NULL ORDER BY modified DESC LIMIT %(lmt)s",
+                            f"SELECT id,memo FROM {self._mtable} WHERE deleted IS NULL ORDER BY modified DESC LIMIT %(lmt)s",
                             {"lmt": limit},
                         )
                 else:
                     if offset > 0:
                         await cur.execute(
-                            f"SELECT id,memo FROM {self._ltable} WHERE deleted IS NULL ORDER BY modified DESC OFFSET %(ofs)s",
+                            f"SELECT id,memo FROM {self._mtable} WHERE deleted IS NULL ORDER BY modified DESC OFFSET %(ofs)s",
                             {"ofs": offset},
                         )
                     else:
                         await cur.execute(
-                            f"SELECT id,memo FROM {self._ltable} WHERE deleted IS NULL ORDER BY modified DESC"
+                            f"SELECT id,memo FROM {self._mtable} WHERE deleted IS NULL ORDER BY modified DESC"
                         )
                 ret = await cur.fetchall()
                 cur.close()
@@ -247,17 +246,17 @@ class PGData:
         """count all"""
         if not self._pool:
             return 0
-        ret = 0
+        cret = []
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
                 await cur.execute(
-                    f"SELECT count(*) FROM {self._ltable} WHERE deleted IS NULL"
+                    f"SELECT count(*) FROM {self._mtable} WHERE deleted IS NULL"
                 )
-                ret = await cur.fetchone()
+                cret = await cur.fetchone()
                 cur.close()
             await self._pool.release(conn)
-            if len(ret) == 1:
-                return ret[0]
+            if len(cret) == 1:
+                return cret[0]
         return 0
 
     async def select_id(self, mid) -> list:
@@ -267,7 +266,7 @@ class PGData:
         async with await self._pool.acquire() as conn:
             async with await conn.cursor() as cur:
                 await cur.execute(
-                    f"SELECT id,memo FROM {self._ltable} WHERE deleted IS NULL AND id = %(id)s",
+                    f"SELECT id,memo FROM {self._mtable} WHERE deleted IS NULL AND id = %(id)s",
                     {"id": mid},
                 )
                 ret = await cur.fetchall()
