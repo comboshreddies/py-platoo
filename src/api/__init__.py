@@ -12,8 +12,11 @@ from quart_schema import RequestSchemaValidationError, DataSource
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 from data_layer import Data
+import importlib.metadata
 
-L_VERSION = "v1"
+
+API_VERSION = "v1"
+APP_NAME = "memo"
 
 app = Quart(__name__)
 
@@ -76,15 +79,30 @@ async def serve_rendered_html() -> tuple[str, int]:
     cnt = await DATA_ONE.count_all()
     print(cnt)
     ret = await DATA_ONE.select_all_limit_offset(0, 0)
-    render = await render_template("memo_template.html", items=ret, total_items=cnt)
+    render = await render_template("memo_template.html", items=ret, total_items=cnt, name=APP_NAME, version=importlib.metadata.version(APP_NAME))
     return render, 200
 
 
 @app.get("/dynamic")
 async def serve_js_html() -> tuple[str, int]:
     """serving html that requires js"""
-    render = await render_template("memo_template.html", items=[], total_items=0)
+    render = await render_template("memo_template.html", items=[], total_items=0, name=APP_NAME, version=importlib.metadata.version(APP_NAME))
     return render, 200
+
+
+@dataclass
+class ApiVersion:
+    """data class for ApiVersion"""
+
+    api_version: str
+    name: str
+
+
+@app.get("/version/api")
+@validate_response(ApiVersion)
+async def api_version() -> tuple[ApiVersion, int]:
+    """api version"""
+    return ApiVersion(api_version=importlib.metadata.version(APP_NAME),name=APP_NAME), 200
 
 
 @dataclass
@@ -148,7 +166,7 @@ class MemoListOut:
     items: list[MemoItem]
 
 
-@app.get(f"/memos/{L_VERSION}")
+@app.get(f"/memos/{API_VERSION}")
 @validate_querystring(MemoListIn)
 @validate_response(MemoListOut)
 async def get_memos(query_args: MemoListIn) -> tuple[MemoListOut, int]:
@@ -189,7 +207,7 @@ class MemoOut:
     uuid: str
 
 
-@app.post(f"/memos/{L_VERSION}")
+@app.post(f"/memos/{API_VERSION}")
 @validate_request(MemoIn)
 @validate_response(MemoOut)
 async def add_memo_versioned(data: MemoIn) -> MemoOut:
@@ -223,7 +241,7 @@ class MemoDelOut(MemoDelIn):
     success: bool
 
 
-@app.delete(f"/memos/{L_VERSION}/<string:uuid>")
+@app.delete(f"/memos/{API_VERSION}/<string:uuid>")
 @validate_response(MemoDelOut)
 async def delete_memo_2(uuid) -> tuple[MemoDelOut, int]:
     """add new memo"""
@@ -251,7 +269,7 @@ class MemoGetOut(MemoDelIn):
     memo: str
 
 
-@app.get(f"/memos/{L_VERSION}/<string:uuid>")
+@app.get(f"/memos/{API_VERSION}/<string:uuid>")
 @validate_response(MemoGetOut)
 async def get_memo(uuid) -> tuple[MemoGetOut, int]:
     """add new memo"""

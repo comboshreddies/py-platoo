@@ -4,6 +4,13 @@ import nox
 
 
 @nox.session(python=["3.12"])
+def check(session):
+    """run pyproject check"""
+    session.install("poetry")
+    session.run("poetry", "check")
+
+
+@nox.session(python=["3.12"])
 def tests(session):
     """run tests"""
     session.install("poetry")

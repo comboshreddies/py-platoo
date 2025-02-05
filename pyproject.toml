@@ -1,9 +1,9 @@
 [project]
-name = "api"
-version = "0.1.0"
+name = "memo"
+version = "0.1.2"
 description = ""
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "Combo Shreddies",email = "you@example.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12"
@@ -14,7 +14,6 @@ dependencies = [
     "hypercorn (>=0.17.3,<0.18.0)",
     "aiopg (>=1.4.0,<2.0.0)",
     "types-psycopg2 (>=2.9.21.20250121,<3.0.0.0)",
-    "nox (>=2024.10.9,<2025.0.0)",
 ]
 
 [tool.poetry]
@@ -28,12 +27,13 @@ flake8 = "^7.1.1"
 flake8-bugbear = "^24.12.12"
 mypy = "^1.14.1"
 black = "^24.10.0"
+nox = "^2024.10.9"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.scripts]
+[project.scripts]
 start = "api:quart_run"
 
 [tool.coverage.run]

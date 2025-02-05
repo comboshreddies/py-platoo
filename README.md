@@ -24,7 +24,7 @@ run:
   python3 -m venv venv
   source venv/bin/activate
   pip3 install poetry
-  poetry install
+  poetry install --without=dev
 ```
 
 check PG_CONNECT of a script ./hypercorn_run.sh so it fits your postgresql settings
