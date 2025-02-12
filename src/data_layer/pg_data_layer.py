@@ -34,8 +34,8 @@ class PGData:
     async def pool_info(self) -> bool:
         """pool info"""
         if self._pool:
-            print(f"free : {self._pool.freesize}")
-            print(f"pool : {self._pool.size}")
+            print(f"Class: {self.__class__.__name__}, free : {self._pool.freesize}")
+            print(f"Class: {self.__class__.__name__}, pool : {self._pool.size}")
             return True
         return False
 
@@ -48,7 +48,7 @@ class PGData:
                 self._connect_info, pool_recycle=True, maxsize=0
             )
         except psycopg2.OperationalError as e:
-            print(f"Unable to connect!\n{e}")
+            print(f"Class: {self.__class__.__name__}, Unable to connect!\n{e}")
             return False
         return True
 

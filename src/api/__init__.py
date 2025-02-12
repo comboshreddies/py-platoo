@@ -28,14 +28,24 @@ DATA_ONE = Data(getenv("PG_CONNECT"))
 
 def quart_run() -> None:  # pragma: no cover
     """web server entry no async"""
-    app.run(host="127.0.0.1", port=5000)
+    port = os.getenv("QUART_PORT")
+    if not port:
+        port = 5000
+    app.run(host="127.0.0.1", port=port)
 
 
 async def run() -> None:  # pragma: no cover
     """web server entry async"""
     config = Config()
-    config.bind = ["localhost:8040"]
-    asyncio.run(serve(app, config))
+    port = os.getenv("HYPERCORN_PORT")
+    if not port:
+        port = 8040
+    config.bind = [f"127.0.0.1:{port}"]
+    try:
+        asyncio.run(serve(app, config))
+    except hypercorn.utils.LifespanFailureError(e):
+        print("---------------")
+        print(e)
 
 
 @app.before_serving
@@ -44,24 +54,26 @@ async def setup() -> None:
     global DATA_ONE
     connect_string = getenv("PG_CONNECT")
     if not connect_string:
-        print("no data connect string, exiting")
+        print("before_serving: no data connect string, exiting")
         sys_exit(1)
+    if connect_string == "NO_DATA_RUN":
+        return True
     if not DATA_ONE:
-        print("no data class, exiting")
+        print(f"before_serving: no data class, exiting")
         sys_exit(2)
     if not await DATA_ONE.connect_pool():
-        print("unable to create pool, exiting")
+        print("before_serving: unable to create database pool, exiting")
         sys_exit(3)
     if not await DATA_ONE.check_connection():
-        print("unable to verify connection, exiting")
+        print("before_serving: unable to verify database connection, exiting")
         sys_exit(4)
     if not await DATA_ONE.check_table():
         print("no expected table found, creating")
         if not await DATA_ONE.create_table():
-            print("failed on table creation, exiting")
+            print("before_serving: failed on table creation, exiting")
             sys_exit(5)
         if not await DATA_ONE.add_indexes():
-            print("failed to add indexes, exiting")
+            print("before_serving: failed to add indexes, exiting")
             sys_exit(6)
 
 
